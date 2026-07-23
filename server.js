@@ -55,6 +55,26 @@ app.get('/tasks/:id', (req, res) => {
   });
 });
 
+// POST /tasks - Create a new task in SQLite
+app.post('/tasks', (req, res) => {
+  const { title } = req.body;
+
+  // Input validation: ensure title is present and non-empty
+  if (!title || typeof title !== 'string' || title.trim() === '') {
+    return res.status(400).json({ error: 'Title is required and must be a non-empty string' });
+  }
+
+  const stmt = db.prepare('INSERT INTO tasks (title, done) VALUES (?, ?)');
+  const result = stmt.run(title.trim(), 0);
+
+  // Return 201 Created with the new row's ID
+  res.status(201).json({
+    id: Number(result.lastInsertRowid),
+    title: title.trim(),
+    done: false
+  });
+});
+
 const PORT = 3000;
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
