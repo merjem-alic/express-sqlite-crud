@@ -75,6 +75,50 @@ app.post('/tasks', (req, res) => {
   });
 });
 
+// PUT /tasks/:id - Update an existing task in SQLite
+app.put('/tasks/:id', (req, res) => {
+  const { id } = req.params;
+  const { title, done } = req.body;
+
+  // 1. Check if the task exists first
+  const existing = db.prepare('SELECT id, title, done FROM tasks WHERE id = ?').get(id);
+  if (!existing) {
+    return res.status(404).json({ error: 'Task not found' });
+  }
+
+  // 2. Fall back to current values if fields aren't provided in req.body
+  const updatedTitle = title !== undefined ? String(title).trim() : existing.title;
+  const updatedDone = done !== undefined ? (done ? 1 : 0) : existing.done;
+
+  if (updatedTitle === '') {
+    return res.status(400).json({ error: 'Title cannot be empty' });
+  }
+
+  // 3. Perform update query
+  const stmt = db.prepare('UPDATE tasks SET title = ?, done = ? WHERE id = ?');
+  stmt.run(updatedTitle, updatedDone, id);
+
+  res.json({
+    id: Number(id),
+    title: updatedTitle,
+    done: Boolean(updatedDone)
+  });
+});
+
+// DELETE /tasks/:id - Delete a task from SQLite
+app.delete('/tasks/:id', (req, res) => {
+  const { id } = req.params;
+
+  const stmt = db.prepare('DELETE FROM tasks WHERE id = ?');
+  const result = stmt.run(id);
+
+  if (result.changes === 0) {
+    return res.status(404).json({ error: 'Task not found' });
+  }
+
+  res.status(200).json({ message: `Task ${id} deleted successfully` });
+});
+
 const PORT = 3000;
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
