@@ -32,3 +32,10 @@ Lightweight REST API for task management built with Node.js, Express, and SQLite
 - POST,/tasks,Create a new task
 - PUT,/tasks/:id,Update a task (title/done)
 - DELETE,/tasks/:id,Delete a task by ID
+
+### Database overview
+- **Database Choice**: SQLite was chosen for its lightweight, serverless nature, storing data directly in a single file without requiring external database server setup.
+- **Storage Location**: Stored locally in the project root as `tasks.db`.
+
+### Database Viewer Screenshot
+![database](image.png)
