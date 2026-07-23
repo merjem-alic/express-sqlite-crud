@@ -19,6 +19,7 @@
   },
   "homepage": "https://github.com/merjem-alic/express-sqlite-crud#readme",
   "dependencies": {
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "pg": "^8.22.0"
   }
 }
