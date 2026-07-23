@@ -27,6 +27,34 @@ if (count === 0) {
   console.log('Database seeded with example tasks.');
 }
 
+// GET /tasks - Read all tasks from SQLite
+app.get('/tasks', (req, res) => {
+  const tasks = db.prepare('SELECT id, title, done FROM tasks').all();
+  
+  // SQLite stores booleans as 0 or 1, convert back to true/false for JSON
+  const formattedTasks = tasks.map(task => ({
+    ...task,
+    done: Boolean(task.done)
+  }));
+
+  res.json(formattedTasks);
+});
+
+// GET /tasks/:id - Read a single task by ID using parameterized query (?)
+app.get('/tasks/:id', (req, res) => {
+  const { id } = req.params;
+  const task = db.prepare('SELECT id, title, done FROM tasks WHERE id = ?').get(id);
+
+  if (!task) {
+    return res.status(404).json({ error: 'Task not found' });
+  }
+
+  res.json({
+    ...task,
+    done: Boolean(task.done)
+  });
+});
+
 const PORT = 3000;
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
