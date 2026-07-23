@@ -1,0 +1,24 @@
+{
+  "name": "express-sqlite-crud",
+  "version": "1.0.0",
+  "description": "Lightweight REST API for task management built with Node.js, Express, and SQLite persistence.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/merjem-alic/express-sqlite-crud.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/merjem-alic/express-sqlite-crud/issues"
+  },
+  "homepage": "https://github.com/merjem-alic/express-sqlite-crud#readme",
+  "dependencies": {
+    "express": "^5.2.1"
+  }
+}
