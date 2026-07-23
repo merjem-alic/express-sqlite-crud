@@ -1,41 +1,64 @@
-# express-sqlite-crud
-Lightweight REST API for task management built with Node.js, Express, and SQLite persistence.
+# express-postgres-crud
+
+Lightweight REST API for task management built with Node.js, Express, PostgreSQL, and Docker Compose.
 
 ## Features
 
 - Full CRUD operations (`GET`, `POST`, `PUT`, `DELETE`).
-- SQLite persistence (`tasks.db`) with automatic table creation and initial seeding.
-- Zero extra native build dependencies (uses Node's built-in `node:sqlite`).
+- PostgreSQL persistence running in Docker with a named volume.
+- Single-command stack startup with Docker Compose.
+- Healthcheck integration to guarantee database readiness on startup.
+
+## Architecture & Layering
+
+By leveraging a modular data access pattern, we swapped out the previous storage engine for a PostgreSQL repository (`pg` pool) **without modifying any Express route handlers or service logic**. The endpoint contracts (`GET`, `POST`, `PUT`, `DELETE` at `/tasks`) remain completely identical.
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js (v22.5.0 or higher recommended for `node:sqlite`)
+- Docker Desktop installed and running.
 
-### Installation
+### How to Run
 
 1. Clone the repository:
+
    ```bash
    git clone <YOUR_REPO_URL>
    cd express-sqlite-crud
    ```
-2. Install dependencies:
-    ```npm install```
-3. Start the server:
-    ```node server.js```
-4. The server will run at `http://localhost:3000`.
 
-### API Endpoints
-- GET,/tasks,Get all tasks
-- GET,/tasks/:id,Get a single task by ID
-- POST,/tasks,Create a new task
-- PUT,/tasks/:id,Update a task (title/done)
-- DELETE,/tasks/:id,Delete a task by ID
+2. Spin up the multi-container stack:
 
-### Database overview
-- **Database Choice**: SQLite was chosen for its lightweight, serverless nature, storing data directly in a single file without requiring external database server setup.
-- **Storage Location**: Stored locally in the project root as `tasks.db`.
+   ```bash
+   docker compose up --build
+   ```
 
-### Database Viewer Screenshot
-![database](image.png)
+3. The server will run at `http://localhost:3000`.
+
+### Environment Variables
+
+- `.env` contains the local database connection string (git-ignored).
+- Refer to `.env.example` for the required configuration format:
+
+  ```
+  DATABASE_URL=postgres://postgres:dev@localhost:5432/tasks
+  ```
+
+### Persistence Verification
+
+Data persistence across container restarts was verified through the following steps:
+
+1. Started the stack with `docker compose up -d`.
+2. Created a new task via `POST /tasks`.
+3. Stopped and destroyed the container stack using `docker compose down`.
+4. Restarted the stack with `docker compose up -d`.
+5. Executed `GET /tasks` — all previously saved records persisted via the named volume (`taskdata`).
+
+## API Endpoints
+
+- `GET /tasks` - Get all tasks
+- `GET /tasks/:id` - Get a single task by ID
+- `POST /tasks` - Create a new task (`{ "title": "New Task" }`)
+- `PUT /tasks/:id` - Update a task (`{ "title": "Updated", "done": true }`)
+- `DELETE /tasks/:id` - Delete a task by ID
