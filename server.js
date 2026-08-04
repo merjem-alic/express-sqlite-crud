@@ -1,3 +1,5 @@
+const swaggerUi = require('swagger-ui-express');
+
 require('dotenv').config();
 const supabase = require('./supabaseClient');
 
@@ -26,6 +28,9 @@ async function requireAuth(req, res, next) {
   req.token = token;
   next();
 }
+
+const swaggerDocument = require('./openapi.json');
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 // POST /auth/signup
 app.post('/auth/signup', async (req, res) => {
