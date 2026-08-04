@@ -1,64 +1,91 @@
-# express-postgres-crud
+# Express SQLite CRUD — Auth API
 
-Lightweight REST API for task management built with Node.js, Express, PostgreSQL, and Docker Compose.
+A secure REST API built with Node.js and Express, using **Supabase Auth** as an Identity Provider to handle user signup, login, logout, and token-protected routes. Extends an existing CRUD API with a full authentication layer: JWT-based auth, reusable middleware for route protection, and interactive API docs via Swagger UI.
 
-## Features
+## What this project does
 
-- Full CRUD operations (`GET`, `POST`, `PUT`, `DELETE`).
-- PostgreSQL persistence running in Docker with a named volume.
-- Single-command stack startup with Docker Compose.
-- Healthcheck integration to guarantee database readiness on startup.
+- Lets users sign up and log in via email/password, handled by Supabase Auth
+- Issues a JWT (access token) on login, which the client attaches to protected requests
+- Verifies that JWT server-side before granting access to protected routes
+- Exposes both public (no auth) and protected (auth required) endpoints
+- Documents every route interactively at `/docs` via Swagger UI, with working bearer-token authorization
 
-## Architecture & Layering
+## Setup
 
-By leveraging a modular data access pattern, we swapped out the previous storage engine for a PostgreSQL repository (`pg` pool) **without modifying any Express route handlers or service logic**. The endpoint contracts (`GET`, `POST`, `PUT`, `DELETE` at `/tasks`) remain completely identical.
+### 1. Clone the repo
+```bash
+git clone https://github.com/merjem-alic/express-sqlite-crud.git
+cd express-sqlite-crud
+```
 
-## Getting Started
+### 2. Install dependencies
+```bash
+npm install
+```
 
-### Prerequisites
+### 3. Set up environment variables
+Copy `.env.example` to `.env`:
+```bash
+cp .env.example .env
+```
+Then fill in your own values:
+```
+SUPABASE_URL=your_project_url
+SUPABASE_KEY=your_anon_key
+PORT=3000
+DATABASE_URL=postgres://postgres:dev@localhost:5432/tasks
+```
 
-- Docker Desktop installed and running.
+Get your `SUPABASE_URL` and `SUPABASE_KEY` (publishable/anon key) from your Supabase Dashboard under **Project Settings → API**.
 
-### How to Run
+**Important:** In your Supabase project, go to **Authentication → Sign In / Providers → User Signups**, and toggle **off** "Confirm email" for local testing — otherwise signups will require email confirmation before login works.
 
-1. Clone the repository:
+### 4. Run it
+```bash
+npm start
+```
+You should see:
+```
+Server running and connected to Supabase on http://localhost:3000
+```
 
-   ```bash
-   git clone <YOUR_REPO_URL>
-   cd express-sqlite-crud
-   ```
+## API Reference
 
-2. Spin up the multi-container stack:
+| Method | Route | Auth Required | Description |
+|--------|-------|:---:|-------------|
+| POST | `/auth/signup` | No | Create a new user account |
+| POST | `/auth/login` | No | Authenticate and receive a JWT |
+| POST | `/auth/logout` | Yes | Terminate the current session |
+| GET | `/public/info` | No | Public, unprotected data |
+| GET | `/protected/profile` | Yes | Read the logged-in user's profile |
+| GET | `/protected/dashboard` | Yes | Example second protected route |
 
-   ```bash
-   docker compose up --build
-   ```
+For protected routes, send the token like this:
+```
+Authorization: Bearer <your_access_token>
+```
 
-3. The server will run at `http://localhost:3000`.
+## Interactive Docs
 
-### Environment Variables
+Once the server is running, visit:
+```
+http://localhost:3000/docs
+```
+Click **Authorize**, paste in an access token (from `/auth/login`), and use "Try it out" on any route directly from the browser.
 
-- `.env` contains the local database connection string (git-ignored).
-- Refer to `.env.example` for the required configuration format:
+![Swagger UI](./swagger-screenshot.png)
 
-  ```
-  DATABASE_URL=postgres://postgres:dev@localhost:5432/tasks
-  ```
+## Status Codes
 
-### Persistence Verification
+| Code | Meaning |
+|------|---------|
+| 200 | Success (login, profile read) |
+| 201 | User created (signup) |
+| 204 | Logout successful, no content returned |
+| 400 | Missing or invalid input |
+| 401 | Missing, invalid, or expired token |
 
-Data persistence across container restarts was verified through the following steps:
+## Notes
 
-1. Started the stack with `docker compose up -d`.
-2. Created a new task via `POST /tasks`.
-3. Stopped and destroyed the container stack using `docker compose down`.
-4. Restarted the stack with `docker compose up -d`.
-5. Executed `GET /tasks` — all previously saved records persisted via the named volume (`taskdata`).
-
-## API Endpoints
-
-- `GET /tasks` - Get all tasks
-- `GET /tasks/:id` - Get a single task by ID
-- `POST /tasks` - Create a new task (`{ "title": "New Task" }`)
-- `PUT /tasks/:id` - Update a task (`{ "title": "Updated", "done": true }`)
-- `DELETE /tasks/:id` - Delete a task by ID
+- Passwords and credentials are never handled or stored by this server directly — Supabase manages authentication, hashing, and token issuance.
+- `.env` is excluded from version control via `.gitignore`. Never commit real Supabase keys.
