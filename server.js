@@ -1,3 +1,6 @@
+require('dotenv').config();
+const supabase = require('./supabaseClient');
+
 const express = require('express');
 const { Pool } = require('pg');
 
@@ -38,7 +41,7 @@ async function initDb() {
   }
 }
 
-initDb();
+// initDb();  temporarily disabled while focusin on supabase auth setup
 
 // GET /tasks - Read all tasks
 app.get('/tasks', async (req, res) => {
@@ -131,5 +134,5 @@ app.delete('/tasks/:id', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Server running and connected to Supabase on http://localhost:${PORT}`);
 });
