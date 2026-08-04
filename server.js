@@ -45,6 +45,23 @@ app.post('/auth/login', async (req, res) => {
   });
 });
 
+// GET /public/info
+app.get('/public/info', (req, res) => {
+  res.status(200).json({ message: 'Welcome stranger! This info is public.' });
+});
+
+// GET /protected/profile
+app.get('/protected/profile', (req, res) => {
+  const authHeader = req.headers['authorization'];
+
+  if (!authHeader || !authHeader.startsWith('Bearer ') || authHeader.split(' ')[1] === '') {
+    return res.status(401).json({ error: 'Access token required' });
+  }
+
+  // Token verification comes in Stage 3 — for now just checking presence
+  res.status(200).json({ message: 'Token received (not yet verified)' });
+});
+
 // Initialize PostgreSQL connection pool using .env variable
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgres://postgres:dev@localhost:5432/tasks'
