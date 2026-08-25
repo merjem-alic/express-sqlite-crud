@@ -1,0 +1,10 @@
+[
+  { "input": "Sr. SWE II", "expected": "Senior Software Engineer" },
+  { "input": "Senior Software Eng.", "expected": "Senior Software Engineer" },
+  { "input": "senior dev", "expected": "Senior Software Engineer" },
+  { "input": "PM", "expected": "Product Manager" },
+  { "input": "Staff Engineer", "expected": "Staff Software Engineer" },
+  { "input": "Data Scientist II", "expected": "Data Scientist" },
+  { "input": "QA Analyst", "expected": "QA Engineer" },
+  { "input": "Chief Vibes Officer", "expected": "other" }
+]
