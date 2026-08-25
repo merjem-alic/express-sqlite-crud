@@ -8,8 +8,22 @@ const { Pool } = require('pg');
 
 const { z } = require('zod');
 
+const fs = require('fs');
+const path = require('path');
+
+const OpenAI = require('openai');
+const client = new OpenAI({
+  baseURL: process.env.LLM_BASE_URL,
+  apiKey: process.env.LLM_API_KEY,
+});
+
 const app = express();
 app.use(express.json());
+
+const NORMALIZE_PROMPT = fs.readFileSync(
+  path.join(__dirname, 'prompts', 'normalize-v1.md'),
+  'utf-8'
+);
 
 // Auth middleware
 async function requireAuth(req, res, next) {
@@ -269,6 +283,19 @@ app.post('/normalize', async (req, res) => {
     });
   }
 
-  // real model call comes in Stage 2 — placeholder for now
-  return res.status(501).json({ error: 'Not implemented yet — real model call comes in Stage 2' });
+  try {
+    const completion = await client.chat.completions.create({
+      model: process.env.LLM_MODEL,
+      temperature: 0.2,
+      messages: [
+        { role: 'system', content: NORMALIZE_PROMPT },
+        { role: 'user', content: JSON.stringify({ title }) }
+      ]
+    });
+
+    const rawText = completion.choices[0].message.content;
+    return res.status(200).json({ raw: rawText }); // temporary — Stage 3 adds real parsing/validation
+  } catch (err) {
+    return res.status(500).json({ error: 'Model call failed', detail: err.message });
+  }
 });
