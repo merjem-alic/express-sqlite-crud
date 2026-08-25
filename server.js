@@ -283,18 +283,81 @@ app.post('/normalize', async (req, res) => {
     });
   }
 
-  try {
+  async function callModel(messages) {
     const completion = await client.chat.completions.create({
       model: process.env.LLM_MODEL,
       temperature: 0.2,
-      messages: [
-        { role: 'system', content: NORMALIZE_PROMPT },
-        { role: 'user', content: JSON.stringify({ title }) }
-      ]
+      messages
     });
+    return completion.choices[0].message.content;
+  }
 
-    const rawText = completion.choices[0].message.content;
-    return res.status(200).json({ raw: rawText }); // temporary — Stage 3 adds real parsing/validation
+  function tryParse(rawText) {
+    // strip code fences if present, find the JSON object
+    let cleaned = rawText.trim();
+    const fenceMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (fenceMatch) cleaned = fenceMatch[1].trim();
+
+    try {
+      return { ok: true, data: JSON.parse(cleaned) };
+    } catch (err) {
+      return { ok: false, error: `JSON parse failed: ${err.message}` };
+    }
+  }
+
+  const baseMessages = [
+    { role: 'system', content: NORMALIZE_PROMPT },
+    { role: 'user', content: JSON.stringify({ title }) }
+  ];
+
+  try {
+    // first attempt
+    let rawText = await callModel(baseMessages);
+    let parsed = tryParse(rawText);
+    let validation = parsed.ok ? NormalizeOutputSchema.safeParse(parsed.data) : null;
+
+    if (parsed.ok && validation.success) {
+      return res.status(200).json(validation.data);
+    }
+
+    // repair retry — send the broken output + the error back to the model
+    const errorMessage = parsed.ok
+      ? `Validation failed: ${JSON.stringify(validation.error.issues)}`
+      : parsed.error;
+
+    const repairMessages = [
+      ...baseMessages,
+      { role: 'assistant', content: rawText },
+      { role: 'user', content: `Your previous answer was rejected for this reason: ${errorMessage}. Return only corrected JSON matching the schema.` }
+    ];
+
+    const repairedRawText = await callModel(repairMessages);
+    const repairedParsed = tryParse(repairedRawText);
+    const repairedValidation = repairedParsed.ok ? NormalizeOutputSchema.safeParse(repairedParsed.data) : null;
+
+    if (repairedParsed.ok && repairedValidation.success) {
+      return res.status(200).json(repairedValidation.data);
+    }
+
+    // give up cleanly — quarantine
+    const quarantineDir = path.join(__dirname, 'logs');
+    if (!fs.existsSync(quarantineDir)) fs.mkdirSync(quarantineDir, { recursive: true });
+
+    const quarantineEntry = {
+      timestamp: new Date().toISOString(),
+      input: { title },
+      raw_output: repairedRawText,
+      error: repairedParsed.ok ? JSON.stringify(repairedValidation.error.issues) : repairedParsed.error,
+      prompt_version: 'normalize-v1'
+    };
+
+    fs.appendFileSync(
+      path.join(quarantineDir, 'quarantine.jsonl'),
+      JSON.stringify(quarantineEntry) + '\n'
+    );
+
+    return res.status(422).json({ error: 'Model could not produce a valid response after repair attempt' });
+
   } catch (err) {
     return res.status(500).json({ error: 'Model call failed', detail: err.message });
   }

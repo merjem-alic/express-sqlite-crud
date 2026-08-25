@@ -1,0 +1,1 @@
+{"timestamp":"2026-08-25T18:35:28.835Z","input":{"title":"Sr. SWE II"},"raw_output":"START {\"canonical_title\": \"Senior Software Engineer\", \"confidence\": 0.9, \"reason\": \"Sr. and SWE II both indicate a senior-level software engineering role.\"} END","error":"JSON parse failed: Unexpected token 'S', \"START {\"ca\"... is not valid JSON","prompt_version":"normalize-v1"}
