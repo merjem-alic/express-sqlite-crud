@@ -15,6 +15,8 @@ const OpenAI = require('openai');
 const client = new OpenAI({
   baseURL: process.env.LLM_BASE_URL,
   apiKey: process.env.LLM_API_KEY,
+  timeout: 30000, // 30 seconds — the SDK default is 10 minutes, far too long for an HTTP endpoint
+  maxRetries: 0,  // we implement our own retry logic below instead of relying on the SDK's silent defaults
 });
 
 const app = express();
@@ -241,11 +243,6 @@ app.delete('/tasks/:id', async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running and connected to Supabase on http://localhost:${PORT}`);
-});
-
 // ---------- /normalize schema ----------
 
 const CANONICAL_TITLES = [
@@ -266,6 +263,85 @@ const NormalizeOutputSchema = z.object({
   reason: z.string().min(1)
 });
 
+// ---------- /normalize helpers ----------
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function callModel(messages) {
+  const maxAttempts = 3; // 1 initial + up to 2 retries on the right errors
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const startedAt = Date.now();
+    try {
+      const completion = await client.chat.completions.create({
+        model: process.env.LLM_MODEL,
+        temperature: 0.2,
+        messages
+      });
+
+      const durationMs = Date.now() - startedAt;
+      const usage = completion.usage || {};
+
+      // structured cost log line
+      console.log(JSON.stringify({
+        type: 'llm_call',
+        prompt_version: 'normalize-v1',
+        model: process.env.LLM_MODEL,
+        input_tokens: usage.prompt_tokens ?? null,
+        output_tokens: usage.completion_tokens ?? null,
+        duration_ms: durationMs,
+        attempt
+      }));
+
+      return completion.choices[0].message.content;
+
+    } catch (err) {
+      const status = err.status || err.response?.status;
+
+      // never retry client errors — a bad key or bad request will still be bad in 4 seconds
+      if (status === 400 || status === 401 || status === 403) {
+        throw err;
+      }
+
+      lastError = err;
+
+      // retry on timeout, 429, or 5xx — with backoff + jitter
+      const isRetryable = status === 429 || (status >= 500 && status < 600) || err.name === 'APIConnectionTimeoutError' || err.code === 'ETIMEDOUT';
+
+      if (isRetryable && attempt < maxAttempts) {
+        const retryAfterHeader = err.headers?.['retry-after'];
+        const waitMs = retryAfterHeader
+          ? parseInt(retryAfterHeader, 10) * 1000
+          : (Math.pow(2, attempt - 1) * 1000) + Math.floor(Math.random() * 300); // exponential backoff + jitter
+
+        console.log(JSON.stringify({ type: 'llm_retry', attempt, status, wait_ms: waitMs }));
+        await sleep(waitMs);
+        continue;
+      }
+
+      throw err;
+    }
+  }
+
+  throw lastError;
+}
+
+function tryParse(rawText) {
+  // strip code fences if present, find the JSON object
+  let cleaned = rawText.trim();
+  const fenceMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fenceMatch) cleaned = fenceMatch[1].trim();
+
+  try {
+    return { ok: true, data: JSON.parse(cleaned) };
+  } catch (err) {
+    return { ok: false, error: `JSON parse failed: ${err.message}` };
+  }
+}
+
 // ---------- POST /normalize ----------
 
 app.post('/normalize', async (req, res) => {
@@ -283,26 +359,8 @@ app.post('/normalize', async (req, res) => {
     });
   }
 
-  async function callModel(messages) {
-    const completion = await client.chat.completions.create({
-      model: process.env.LLM_MODEL,
-      temperature: 0.2,
-      messages
-    });
-    return completion.choices[0].message.content;
-  }
-
-  function tryParse(rawText) {
-    // strip code fences if present, find the JSON object
-    let cleaned = rawText.trim();
-    const fenceMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (fenceMatch) cleaned = fenceMatch[1].trim();
-
-    try {
-      return { ok: true, data: JSON.parse(cleaned) };
-    } catch (err) {
-      return { ok: false, error: `JSON parse failed: ${err.message}` };
-    }
+  if (process.env.LLM_ENABLED === 'false') {
+    return res.status(503).json({ error: 'LLM feature is currently disabled' });
   }
 
   const baseMessages = [
@@ -359,6 +417,14 @@ app.post('/normalize', async (req, res) => {
     return res.status(422).json({ error: 'Model could not produce a valid response after repair attempt' });
 
   } catch (err) {
+    if (err.name === 'APIConnectionTimeoutError' || err.code === 'ETIMEDOUT') {
+      return res.status(504).json({ error: 'Model call timed out' });
+    }
     return res.status(500).json({ error: 'Model call failed', detail: err.message });
   }
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server running and connected to Supabase on http://localhost:${PORT}`);
 });
