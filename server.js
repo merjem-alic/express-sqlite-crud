@@ -6,6 +6,8 @@ const supabase = require('./supabaseClient');
 const express = require('express');
 const { Pool } = require('pg');
 
+const { z } = require('zod');
+
 const app = express();
 app.use(express.json());
 
@@ -228,4 +230,45 @@ app.delete('/tasks/:id', async (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running and connected to Supabase on http://localhost:${PORT}`);
+});
+
+// ---------- /normalize schema ----------
+
+const CANONICAL_TITLES = [
+  "Software Engineer",
+  "Senior Software Engineer",
+  "Staff Software Engineer",
+  "Engineering Manager",
+  "Product Manager",
+  "Data Scientist",
+  "DevOps Engineer",
+  "QA Engineer",
+  "other"
+];
+
+const NormalizeOutputSchema = z.object({
+  canonical_title: z.enum(CANONICAL_TITLES),
+  confidence: z.number().min(0).max(1),
+  reason: z.string().min(1)
+});
+
+// ---------- POST /normalize ----------
+
+app.post('/normalize', async (req, res) => {
+  const { title } = req.body;
+
+  if (!title || typeof title !== 'string' || title.length < 1 || title.length > 100) {
+    return res.status(400).json({ error: 'title is required and must be 1-100 characters' });
+  }
+
+  if (process.env.LLM_STUB === '1') {
+    return res.status(200).json({
+      canonical_title: "Software Engineer",
+      confidence: 0.99,
+      reason: "Stub mode — hard-coded response, no model called."
+    });
+  }
+
+  // real model call comes in Stage 2 — placeholder for now
+  return res.status(501).json({ error: 'Not implemented yet — real model call comes in Stage 2' });
 });
